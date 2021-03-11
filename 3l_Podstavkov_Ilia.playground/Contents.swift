@@ -63,6 +63,7 @@ enum TrunkCarMark {
 }
 
 protocol Car {
+    var type: String { get }
     var mark: String { get }
     var trunkWeight: Float { get }
     var yearIssue: Int { get }
@@ -77,7 +78,8 @@ protocol Car {
 }
 
 extension Car {
-    static func parseFields(jsonDict: JSONDict) -> (String, Float, Int, Double, Bool, Bool, Bool, [Int:Thing]) {
+    static func parseFields(jsonDict: JSONDict) -> (String,String, Float, Int, Double, Bool, Bool, Bool, [Int:Thing]) {
+        let type = jsonDict["type"] as! String
         let mark = jsonDict["mark"] as! String
         let trunkWeight = jsonDict["trunk"] as! Float
         let yearIssue = jsonDict["yearIssue"] as! Int
@@ -88,18 +90,24 @@ extension Car {
         let isFullTrunk = jsonDict["fullTrunk"] as? Bool ?? false
         let trunk = jsonDict["things"] as? [Int:Thing] ?? [:]
         
-        return (mark, trunkWeight, yearIssue, fuelAmmount, isStartEngine, isOpenWindow, isFullTrunk, trunk)
+        return (type,mark, trunkWeight, yearIssue, fuelAmmount, isStartEngine, isOpenWindow, isFullTrunk, trunk)
     }
     
     func info(){
         let a = getWeightAllThingsAndLastKey()
         print(
-            "Машина \(mark) , год выпуска \(yearIssue)"
+            "Машина \(mark) (\(type)), год выпуска \(yearIssue)"
             + "\n топливо : \(fuelAmmount)"
-                + "\n багажник/заполнено : \(trunkWeight)/\(isFullTrunk) (\(a.0))"
+            + "\n багажник/заполнено : \(trunkWeight)/\(isFullTrunk) (\(a.0))"
             + "\n двигатель запушен : \(isStartEngine)"
             + "\n окна открыты : \(isOpenWindow)"
         )
+    }
+    
+    func truncInfo(){
+        for (key, value) in  self.trunk {
+            print("\(key) : '\(value.name)' : \(value.weight) ")
+        }
     }
     
         mutating func handleAction(action: CarAction) {
@@ -118,7 +126,7 @@ extension Car {
     private mutating func startEngine(state: Bool){
         if state && !isStartEngine {
             guard self.fuelAmmount > 0 else {
-                print(AppError.fuelEmpty)
+                print(AppError.fuelEmpty.rawValue)
                 return
             }
             self.isStartEngine = true
@@ -153,20 +161,20 @@ extension Car {
         let b = getWeightAllThingsAndLastKey()
         let n = b.1+1
         if(self.trunkWeight < thing.weight){
-            AppError.thingWeryBig
+            print(AppError.thingWeryBig.rawValue)
         }else if(self.trunkWeight >= (b.0 + thing.weight)){
             self.trunk[n] = thing
             if (self.trunkWeight - 0.5 <= b.0 + thing.weight) {
                 self.isFullTrunk = true
             }
         }else{
-            AppError.trunkFull
+            print(AppError.trunkFull.rawValue)
         }
     }
     
     private mutating func popTrunc(key: Int){
         if self.trunk.index(forKey: key) == nil {
-            AppError.thingNotFound
+            print(AppError.thingNotFound.rawValue)
         }else{
             self.trunk.removeValue(forKey: key)
             self.isFullTrunk = false
@@ -176,6 +184,8 @@ extension Car {
 }
 
 struct SportCar: Car {
+    var type: String
+    
     var fuelAmmount: Double
     var isStartEngine: Bool
     var isOpenWindow: Bool
@@ -185,13 +195,15 @@ struct SportCar: Car {
     let trunkWeight: Float
     let yearIssue: Int
     init(MARK:SportCarMark, jsonDict: JSONDict) {
-        var a: JSONDict  = ["mark":MARK.info.description,"trunk":MARK.info.trunk]
+        var a: JSONDict  = ["type":"Спортивная машина", "mark":MARK.info.description,"trunk":MARK.info.trunk]
         a.merge(jsonDict) { (current, _) in current }
-        (mark,trunkWeight,yearIssue,fuelAmmount,isStartEngine,isOpenWindow,isFullTrunk,trunk) = SportCar.parseFields(jsonDict: a)
+        (type , mark,trunkWeight,yearIssue,fuelAmmount,isStartEngine,isOpenWindow,isFullTrunk,trunk) = SportCar.parseFields(jsonDict: a)
     }
 }
 
 struct TrunkCar: Car {
+    var type: String
+    
     var fuelAmmount: Double
     var isStartEngine: Bool
     var isOpenWindow: Bool
@@ -202,13 +214,32 @@ struct TrunkCar: Car {
     let yearIssue: Int
     
     init(MARK:TrunkCarMark, jsonDict: JSONDict) {
-        var a: JSONDict  = ["mark":MARK.info.description,"trunk":MARK.info.trunk]
+        var a: JSONDict  = ["type":"Грузовик", "mark":MARK.info.description,"trunk":MARK.info.trunk]
         a.merge(jsonDict) { (current, _) in current }
-        (mark,trunkWeight,yearIssue,fuelAmmount,isStartEngine,isOpenWindow,isFullTrunk,trunk) = TrunkCar.parseFields(jsonDict: a)
+        (type, mark,trunkWeight,yearIssue,fuelAmmount,isStartEngine,isOpenWindow,isFullTrunk,trunk) = TrunkCar.parseFields(jsonDict: a)
     }
 }
 
 var car1 = SportCar(MARK: SportCarMark.jaguar, jsonDict: ["yearIssue": 2004, "fuel": 120.0])
 car1.info()
 car1.handleAction(action: CarAction.setEngineState(true))
+car1.handleAction(action: CarAction.pullThings(Thing.init(name: "60x30x10", weight: 10)))
+car1.handleAction(action: CarAction.pullThings(Thing.init(name: "test", weight: 4.0)))
+
 car1.info()
+car1.handleAction(action: CarAction.setWindowState(true))
+car1.handleAction(action: CarAction.popThing(2))
+
+car1.info()
+
+let things: [Int:Thing] = [
+    1 : Thing.init(name: "Pal_1", weight: 22.2),
+    2 : Thing.init(name: "Pal_2", weight: 34.4),
+    3 : Thing.init(name: "Pal_3", weight: 12.78),
+    4 : Thing.init(name: "Pal_4", weight: 80.9),
+    5 : Thing.init(name: "Pal_5", weight: 100.0)
+]
+var car2 = TrunkCar(MARK: TrunkCarMark.kamaz, jsonDict: ["yearIssue": 2020, "fuel": 800.0, "things": things])
+car2.info()
+car2.truncInfo()
+
